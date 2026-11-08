@@ -1,88 +1,132 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
+/// <summary>
+/// Данные об одном отслеживаемом объекте реконструкции.
+/// Имя маркера должно совпадать с именем изображения в Reference Image Library.
+/// </summary>
+[Serializable]
+public class TrackedObject
+{
+    public string imageName;                 // имя изображения в библиотеке маркеров
+    public GameObject prefab;                // префаб 3D-модели
+    public string title;                     // заголовок карточки
+    [TextArea(3, 6)] public string description; // историческая справка
+}
+
+/// <summary>
+/// Отслеживает маркеры изображений через ARTrackedImageManager,
+/// создаёт соответствующую 3D-модель поверх маркера и показывает
+/// информационную карточку объекта.
+/// Поддерживает несколько маркеров одновременно.
+/// </summary>
+[RequireComponent(typeof(ARTrackedImageManager))]
 public class ImageTracker : MonoBehaviour
 {
-    [SerializeField] private GameObject modelPrefab;
-    [SerializeField] private ARTrackedImageManager trackedImageManager;
-    [SerializeField] private GameObject infoCanvas; // ← добавили ссылку на Canvas
-    
-    private GameObject spawnedModel;
+    [Header("Настройки")]
+    public List<TrackedObject> trackedObjects = new();
+    public ModelController modelController;
+    public ARInfoPanel infoPanel;
+    public ARTrackedImageManager trackedImageManager;
+
+    // Активные модели: маркер → созданный объект
+    private readonly Dictionary<ARTrackedImage, GameObject> spawnedModels = new();
+
+    private void Awake()
+    {
+        if (trackedImageManager == null)
+            trackedImageManager = GetComponent<ARTrackedImageManager>();
+    }
 
     private void OnEnable()
     {
-        trackedImageManager.trackedImagesChanged += OnTrackedImagesChanged;
+        // AR Foundation 6: событие изменений трекейблов — UnityEvent
+        trackedImageManager.trackablesChanged.AddListener(OnTrackablesChanged);
     }
 
     private void OnDisable()
     {
-        trackedImageManager.trackedImagesChanged -= OnTrackedImagesChanged;
+        trackedImageManager.trackablesChanged.RemoveListener(OnTrackablesChanged);
     }
 
-    private void Start()
-    {
-        // Скрываем UI при старте
-        if (infoCanvas != null)
-            infoCanvas.SetActive(false);
-    }
-
-    private void OnTrackedImagesChanged(ARTrackedImagesChangedEventArgs eventArgs)
+    private void OnTrackablesChanged(ARTrackablesChangedEventArgs<ARTrackedImage> eventArgs)
     {
         foreach (var trackedImage in eventArgs.added)
             OnImageFound(trackedImage);
-        
+
         foreach (var trackedImage in eventArgs.updated)
             OnImageUpdated(trackedImage);
-        
-        foreach (var trackedImage in eventArgs.removed)
-            OnImageLost(trackedImage);
+
+        // удалённые трекейблы приходят как пары (TrackableId, трекейбл)
+        foreach (var removedPair in eventArgs.removed)
+            OnImageLost(removedPair.Value);
     }
 
     private void OnImageFound(ARTrackedImage trackedImage)
     {
-        if (trackedImage.trackingState == TrackingState.Tracking && spawnedModel == null)
+        TrackedObject entry = FindEntry(trackedImage);
+        if (entry == null || entry.prefab == null)
         {
-            spawnedModel = Instantiate(modelPrefab);
-            spawnedModel.transform.SetParent(trackedImage.transform, false);
-            spawnedModel.SetActive(true);
-            
-            // Показываем UI
-            if (infoCanvas != null)
-                infoCanvas.SetActive(true);
-                
-            Debug.Log("✅ Модель появилась!");
+            Debug.LogWarning($"⚠️ Маркер «{trackedImage.referenceImage.name}» не найден в списке trackedObjects");
+            return;
         }
+
+        GameObject spawnedModel = Instantiate(entry.prefab, trackedImage.transform, false);
+        spawnedModel.SetActive(true);
+        spawnedModels[trackedImage] = spawnedModel;
+
+        if (modelController != null)
+            modelController.SetModel(spawnedModel);
+
+        if (infoPanel != null)
+            infoPanel.ShowObjectInfo(entry.title, entry.description);
+
+        Debug.Log($"✅ Показан объект: {entry.title}");
     }
 
     private void OnImageUpdated(ARTrackedImage trackedImage)
     {
-        if (spawnedModel != null)
+        if (!spawnedModels.TryGetValue(trackedImage, out GameObject spawnedModel)) return;
+
+        bool isTracking = trackedImage.trackingState == TrackingState.Tracking;
+        spawnedModel.SetActive(isTracking);
+
+        if (infoPanel != null)
         {
-            if (trackedImage.trackingState == TrackingState.Tracking)
-            {
-                spawnedModel.SetActive(true);
-                if (infoCanvas != null)
-                    infoCanvas.SetActive(true);
-            }
-            else if (trackedImage.trackingState == TrackingState.Limited)
-            {
-                spawnedModel.SetActive(false);
-                if (infoCanvas != null)
-                    infoCanvas.SetActive(false);
-            }
+            if (isTracking) infoPanel.RestoreVisibility();
+            else infoPanel.HidePanel();
         }
     }
 
     private void OnImageLost(ARTrackedImage trackedImage)
     {
-        if (spawnedModel != null)
+        if (spawnedModels.TryGetValue(trackedImage, out GameObject spawnedModel))
         {
+            if (modelController != null)
+                modelController.ClearModel();
+
             Destroy(spawnedModel);
-            spawnedModel = null;
+            spawnedModels.Remove(trackedImage);
         }
-        // Скрываем UI
-        if (infoCanvas != null)
-            infoCanvas.SetActive(false);
+
+        if (infoPanel != null)
+            infoPanel.HidePanel();
+    }
+
+    /// <summary>
+    /// Ищет данные объекта по имени маркера.
+    /// Если в списке ровно один объект — используем его для любого маркера
+    /// (удобно на этапе прототипа с одним маркером).
+    /// </summary>
+    private TrackedObject FindEntry(ARTrackedImage trackedImage)
+    {
+        if (trackedObjects.Count == 1)
+            return trackedObjects[0];
+
+        string name = trackedImage.referenceImage.name;
+        return trackedObjects.Find(o => o.imageName == name);
     }
 }

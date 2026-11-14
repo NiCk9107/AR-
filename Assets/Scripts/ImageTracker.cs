@@ -85,6 +85,7 @@ public class ImageTracker : MonoBehaviour
             infoPanel.ShowObjectInfo(entry.title, entry.description);
 
         Debug.Log($"✅ Показан объект: {entry.title}");
+        ARDebugHUD.Log($"Модель создана: {entry.title}");
     }
 
     private void OnImageUpdated(ARTrackedImage trackedImage)

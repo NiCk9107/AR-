@@ -88,6 +88,9 @@ public static class ARSceneBootstrap
         if (font == null)
             font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
 
+        // Отладочная строка: GPU, пайплайн, кадры камеры, события трекинга
+        ARDebugHUD.Create(canvasGO.GetComponent<Canvas>(), font);
+
         var title = CreateText(bg.transform, "Title", font, 28, FontStyles.Bold);
         var titleRect = title.GetComponent<RectTransform>();
         titleRect.anchorMin = new Vector2(0, 1);

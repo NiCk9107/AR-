@@ -133,11 +133,27 @@ public static class ARSceneBootstrap
                 description = "Первый в истории управляемый самолёт с двигателем. " +
                               "17 декабря 1903 года братья Орвилл и Уилбур Райт совершили " +
                               "на нём полёт длиной 37 метров. Размах крыльев — 12,3 м, " +
-                              "масса — 274 кг, двигатель — 12 л.с."
+                              "масса — 274 кг, двигатель — 12 л.с.",
+                scale = 0.015f
+            },
+            new TrackedObject
+            {
+                imageName = "Bolshoi Theatre",
+                prefab = Resources.Load<GameObject>("BolshoiTheatre"),
+                title = "Большой театр (1825)",
+                description = "Государственный академический Большой театр России — главная " +
+                              "оперная и балетная сцена страны. Здание в стиле ампир построено " +
+                              "в 1825 году архитектором Осипом Бове на месте сгоревшего в 1812 " +
+                              "году Петровского театра. Фасад украшает квадрига Аполлона. " +
+                              "Ширина фасада — около 40 м.",
+                scale = 0.35f, // FBX в сантиметрах: 0.4 м после импорта → ~14 см над маркером
+                eulerAngles = new Vector3(0f, 180f, 90f) // фасадом к зрителю
             }
         };
         if (tracker.trackedObjects[0].prefab == null)
             Debug.LogError("ARSceneBootstrap: префаб WrightFlyer_Anchor не найден в Resources");
+        if (tracker.trackedObjects[1].prefab == null)
+            Debug.LogError("ARSceneBootstrap: модель BolshoiTheatre не найдена в Assets/Resources");
 
         // ---------- 7. Переподключаем ResetButton на панель ----------
         var resetGO = FindByName("ResetButton");

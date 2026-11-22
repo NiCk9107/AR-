@@ -15,6 +15,8 @@ public class TrackedObject
     public GameObject prefab;                // префаб 3D-модели
     public string title;                     // заголовок карточки
     [TextArea(3, 6)] public string description; // историческая справка
+    public float scale = 1f;                 // масштаб модели при появлении
+    public Vector3 eulerAngles;              // поворот модели при появлении
 }
 
 /// <summary>
@@ -31,6 +33,10 @@ public class ImageTracker : MonoBehaviour
     public ModelController modelController;
     public ARInfoPanel infoPanel;
     public ARTrackedImageManager trackedImageManager;
+
+    [Header("Положение моделей на маркере")]
+    public Vector3 spawnPositionOffset = Vector3.zero;
+    public Vector3 spawnEulerAngles = Vector3.zero;
 
     // Активные модели: маркер → созданный объект
     private readonly Dictionary<ARTrackedImage, GameObject> spawnedModels = new();
@@ -75,6 +81,9 @@ public class ImageTracker : MonoBehaviour
         }
 
         GameObject spawnedModel = Instantiate(entry.prefab, trackedImage.transform, false);
+        spawnedModel.transform.localPosition = spawnPositionOffset;
+        spawnedModel.transform.localRotation = Quaternion.Euler(spawnEulerAngles + entry.eulerAngles);
+        spawnedModel.transform.localScale = Vector3.one * entry.scale;
         spawnedModel.SetActive(true);
         spawnedModels[trackedImage] = spawnedModel;
 
